@@ -4,6 +4,7 @@ import time
 from threading import Thread
 from queue import Queue
 
+# email list. Line-by-line
 
 file = open('emails.txt', 'r')
 
@@ -48,9 +49,10 @@ def writer():
     while True:
         if not q.empty():
             i = q.get()
+            # stop Thread if None is added. Dealing with with .join deadlock case
             if i is None:
                 break
-            # Row comes out of queue; CSV writing goes here
+            # writes to file
             with open("result2.txt", "a+") as f:
                 print("writing")
                 f.write(i + "\n")
@@ -61,25 +63,23 @@ consumer = Thread(target=writer)
 consumer.setDaemon(True)
 consumer.start()
 
+# how many threads we want to run. More threads than this cannot safely run without implementing a proxy solution
 THREADS = 6
 
-def th(): # 279615
-    #emails = file.readlines()[279615:]
+def th(): # 
    
-
-
     with concurrent.futures.ThreadPoolExecutor(max_workers=THREADS) as executor:
         for email in file:
             executor.submit(getEmailStatus, email.rstrip())
 
-    # tell writer to stop
+    # tell writer Thread to stop
     q.put(None)
     consumer.join()
                 
 
 
 if __name__ == '__main__':
-    
+    # test execution time
     start_time = time.time()
     th()
     print("--- %s seconds ---" % (time.time() - start_time))
