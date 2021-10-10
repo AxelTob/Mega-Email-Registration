@@ -1,12 +1,8 @@
 import requests
 import concurrent.futures
-import threading
-from queue import Queue, Empty
 import time
-
-
-
-
+from threading import Thread
+from queue import Queue
 
 
 file = open('emails.txt', 'r')
@@ -34,59 +30,57 @@ params = (
 )
 URL = 'https://g.api.mega.co.nz/cs'
 
+q = Queue()
 
-def ScrapeResult(email):
+def getEmailStatus(email):
     
-    data = '[{"a":"ere","m":"' + email.rstrip() + '","v":2}]' # not pretty
+    data = '[{"a":"ere","m":"' + email + '","v":2}]' # not pretty
 
-    re = requests.post(URL, headers=headers, params=params, data=data,timeout=2)
+    re = requests.post(URL, headers=headers, params=params, data=data)
     print(re.text)
     if re.json()[0] != -9: # if it exists
-        return email
+        q.put(email)
 
-MAX_THREADS = 6
 
-def threadS(): # 279615
-    emails = file.readlines()[279615:]
-    nbrlines = len(emails)
-    print(nbrlines)
 
-    threads = min(MAX_THREADS, nbrlines)
-    _completed = 0
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
-        for result in executor.map(ScrapeResult, emails, timeout=None):
-        
-            if result is not None:
-                with open("result.txt", "a+") as f:
-                    print("writing " )
-                    f.write(result)
-        f.close()
-
-def noThreadS():
-    emails = file.readlines()[:100]
-    nbrlines = len(emails)
-    print(nbrlines)
-
-    threads = min(MAX_THREADS, nbrlines)
-    
-    
-    for email in emails:
-        result = ScrapeResult(email)
-        if result is not None:
+def writer():
+    while True:
+        if not q.empty():
+            i = q.get()
+            if i is None:
+                break
+            # Row comes out of queue; CSV writing goes here
             with open("result2.txt", "a+") as f:
-                print("writing " )
-                f.write(result)
-       
+                print("writing")
+                f.write(i + "\n")
+        
+
+
+consumer = Thread(target=writer)
+consumer.setDaemon(True)
+consumer.start()
+
+THREADS = 6
+
+def th(): # 279615
+    #emails = file.readlines()[279615:]
+   
+
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=THREADS) as executor:
+        for email in file:
+            executor.submit(getEmailStatus, email.rstrip())
+
+    # tell writer to stop
+    q.put(None)
+    consumer.join()
+                
+
 
 if __name__ == '__main__':
     
-    # 16sek
     start_time = time.time()
-    threadS()
+    th()
     print("--- %s seconds ---" % (time.time() - start_time))
 
-    #No threads 38sek
-    # start_time = time.time()
-    # noThreadS()
-    # print("NO THREADS--- %s seconds ---" % (time.time() - start_time))
